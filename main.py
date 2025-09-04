@@ -1,7 +1,6 @@
 # main.py
 from flask import Flask, jsonify, request
-import os, time, math, statistics, json, threading
-import requests
+import os, time, math, statistics, json, threading, requests
 
 # Optional: Google Sheets
 try:
@@ -15,7 +14,11 @@ app = Flask(__name__)
 
 # ---------- CONFIG ----------
 SENSOR_URL = os.getenv("SENSOR_URL", "https://dataset1st.onrender.com")
+
+# Spec file (URL preferred, fallback to local path)
 MACHINE_SPEC_PATH = os.getenv("MACHINE_SPEC_PATH", "machine_spec.json")
+MACHINE_SPEC_URL = os.getenv("MACHINE_SPEC_URL", None)
+
 WINDOW_SECONDS = int(os.getenv("WINDOW_SECONDS", "300"))
 GOOGLE_CREDS_JSON = os.getenv("GOOGLE_CREDS_JSON", None)
 GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", None)
@@ -29,9 +32,24 @@ RUL_K_EXP = float(os.getenv("RUL_K_EXP", "4.0"))
 # weights for final score
 W_VIB, W_TEMP, W_TORQUE, W_POWER = 0.4, 0.3, 0.2, 0.1
 
-# ---------- load spec ----------
-with open(MACHINE_SPEC_PATH, "r") as f:
-    SPEC = json.load(f)
+# ---------- Load spec ----------
+def load_spec():
+    spec = None
+    if MACHINE_SPEC_URL:
+        try:
+            r = requests.get(MACHINE_SPEC_URL, timeout=5)
+            r.raise_for_status()
+            spec = r.json()
+            print("Loaded spec from URL")
+        except Exception as e:
+            print("Spec URL load failed, falling back to local:", e)
+    if spec is None:
+        with open(MACHINE_SPEC_PATH, "r") as f:
+            spec = json.load(f)
+            print("Loaded spec from local file")
+    return spec
+
+SPEC = load_spec()
 
 rated_torque = float(SPEC.get("mechanical_specs", {}).get("rated_torque", 2.4))
 gear_ratio = float(SPEC.get("mechanical_specs", {}).get("gear_ratio", "60:1").split(":")[0]) \
@@ -44,10 +62,11 @@ rated_power = float(SPEC.get("electrical_specs", {}).get("rated_power_output", 1
 expected_life_hours = float(SPEC.get("performance", {}).get("expected_life", "5000").split()[0]) \
     if SPEC.get("performance", {}).get("expected_life") else 5000
 
-# ---------- in-memory sliding window ----------
+# ---------- In-memory sliding window ----------
 history = []
 raw_history = []
 failures = []  # store failures with reasons
+sheet_cache = []  # store data pushed to Google Sheet
 lock = threading.Lock()
 
 # ---------- Google Sheets init helper ----------
@@ -80,7 +99,7 @@ try:
 except Exception as e:
     print("Could not init Google Sheets:", e)
 
-# ---------- unit conversion helper ----------
+# ---------- Unit conversion helper ----------
 def auto_convert(value, unit_type="torque"):
     """Convert values to SI and return with unit label"""
     if unit_type == "torque":  # Nm
@@ -93,7 +112,7 @@ def auto_convert(value, unit_type="torque"):
         return value, "m/s²"
     return value, "unitless"
 
-# ---------- core compute functions ----------
+# ---------- Core compute functions ----------
 def compute_metrics_for_sample(sample, torque_scale=None, vib_baseline=1e-6):
     result = {}
     rpm = float(sample.get("rpm", 0.0))
@@ -178,7 +197,7 @@ def compute_metrics_for_sample(sample, torque_scale=None, vib_baseline=1e-6):
 
     return result
 
-# ---------- helper: compute sliding-window baseline & scale ----------
+# ---------- Helper: compute sliding-window baseline & scale ----------
 def compute_baselines_and_scale(raw_window):
     if not raw_window:
         return None, 1e-6
@@ -194,7 +213,7 @@ def compute_baselines_and_scale(raw_window):
     vib_baseline = max(mean_vib, 1e-6)
     return scale, vib_baseline
 
-# ---------- background poller ----------
+# ---------- Background poller ----------
 def poll_and_compute():
     while True:
         try:
@@ -229,6 +248,7 @@ def poll_and_compute():
                             ",".join(last["warnings"])
                         ]
                         GS_SHEET.append_row(row)
+                        sheet_cache.append(row)
                     except Exception as e:
                         print("GS write error:", e)
         except Exception as e:
@@ -271,6 +291,31 @@ def get_failures():
     n = int(request.args.get("n", 20))
     with lock:
         return jsonify(failures[-n:])
+
+@app.route("/api/sheet", methods=["GET"])
+def get_sheet_data():
+    n = int(request.args.get("n", 50))
+    with lock:
+        return jsonify(sheet_cache[-n:])
+
+@app.route("/api/reload_spec", methods=["POST"])
+def reload_spec():
+    global SPEC, rated_torque, gear_ratio, gear_eff, rated_power, expected_life_hours
+    try:
+        SPEC = load_spec()
+        rated_torque = float(SPEC.get("mechanical_specs", {}).get("rated_torque", 2.4))
+        gear_ratio = float(SPEC.get("mechanical_specs", {}).get("gear_ratio", "60:1").split(":")[0]) \
+            if ":" in str(SPEC.get("mechanical_specs", {}).get("gear_ratio", "")) \
+            else float(SPEC.get("mechanical_specs", {}).get("gear_ratio", 60.0))
+        gear_eff = float(SPEC.get("mechanical_specs", {}).get("gear_efficiency", 0.8)) \
+            if isinstance(SPEC.get("mechanical_specs", {}).get("gear_efficiency", 0.8), (int, float)) \
+            else float(SPEC.get("mechanical_specs", {}).get("gear_efficiency", "0.8").replace("%", "")) / 1.0
+        rated_power = float(SPEC.get("electrical_specs", {}).get("rated_power_output", 15.0))
+        expected_life_hours = float(SPEC.get("performance", {}).get("expected_life", "5000").split()[0]) \
+            if SPEC.get("performance", {}).get("expected_life") else 5000
+        return jsonify({"status":"ok","spec":SPEC})
+    except Exception as e:
+        return jsonify({"error":str(e)}), 500
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
