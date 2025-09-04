@@ -1,0 +1,64 @@
+{
+  "product": {
+    "name": "DC Gear Motor",
+    "model": "Custom-60RPM-12V",
+    "manufacturer": "Groschopp (inferred family)"
+  },
+  "electrical_specs": {
+    "voltage_rating": "12 V DC",
+    "no_load_current": "0.35 A",
+    "rated_load_current": "1.2 A",
+    "stall_current": "3.5 A",
+    "rated_power_output": "15 W"
+  },
+  "mechanical_specs": {
+    "gearbox_type": "Planetary",
+    "gear_ratio": "60:1",
+    "gear_efficiency": "80%",
+    "rated_speed": "60 RPM",
+    "rated_torque": "2.4 Nm",
+    "stall_torque": "6.5 Nm",
+    "shaft_diameter": "8 mm",
+    "shaft_length": "20 mm",
+    "mounting_holes": "M4 threaded, 4x equally spaced"
+  },
+  "performance": {
+    "duty_cycle": "S2 (short-time duty)",
+    "noise_level": "< 50 dB at 1m",
+    "operating_temperature_range": "-10°C to +60°C",
+    "expected_life": "5000 hours at rated load"
+  },
+  "construction": {
+    "housing_material": "Aluminium alloy",
+    "gear_material": "Steel (hardened)",
+    "bearing_type": "Ball bearings",
+    "ip_rating": "IP54"
+  },
+  "assumptions": [
+    {
+      "id": 1,
+      "assumption": "12 V variant selected; other voltage options exist",
+      "category": "Electrical"
+    },
+    {
+      "id": 2,
+      "assumption": "Planetary gearhead with 60:1 ratio used to achieve 60 RPM at rated load",
+      "category": "Mechanical"
+    },
+    {
+      "id": 3,
+      "assumption": "Gear efficiency of 80% is typical for multi-stage planetary configurations",
+      "category": "Performance"
+    },
+    {
+      "id": 4,
+      "assumption": "Bearing types, IP rating, and dimensions inferred from Groschopp motor family",
+      "category": "Design"
+    }
+  ],
+  "metadata": {
+    "created_by": "Er",
+    "created_on": "2025-09-02T13:09:00+05:30",
+    "notes": "Specifications compiled for fine table integration; values are representative and may require validation against manufacturer datasheet."
+  }
+}
