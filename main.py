@@ -1,4 +1,4 @@
-# main.py
+# main.py 
 from flask import Flask, jsonify, request
 import os, time, math, statistics, json, threading, requests, re
 
@@ -317,6 +317,23 @@ def poll_and_compute():
 
 
 threading.Thread(target=poll_and_compute, daemon=True).start()
+
+
+# ---------- Homepage ----------
+@app.route("/")
+def home():
+    return """
+    <h2>🚀 Machine Health Monitoring API</h2>
+    <p>Available endpoints:</p>
+    <ul>
+        <li><a href='/api/metrics'>/api/metrics</a> – Latest computed metrics</li>
+        <li><a href='/api/predict'>/api/predict</a> – Failure prediction & RUL</li>
+        <li><a href='/api/history'>/api/history</a> – Last N computed samples</li>
+        <li><a href='/api/failures'>/api/failures</a> – Recorded failures</li>
+        <li><a href='/api/sheet'>/api/sheet</a> – Cached Google Sheet rows</li>
+        <li><a href='/api/reload_spec'>/api/reload_spec</a> – Reload machine spec</li>
+    </ul>
+    """
 
 
 # ---------- REST endpoints ----------
