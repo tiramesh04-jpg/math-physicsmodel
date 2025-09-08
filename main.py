@@ -37,7 +37,7 @@ app = Flask(__name__)
 # =========================
 # CONFIG (environment-driven)
 # =========================
-SENSOR_URL = os.getenv("SENSOR_URL", "https://dataset1st.onrender.com")
+SENSOR_URL = os.getenv("SENSOR_URL", "https://dataset1st.onrender.com/api/data")
 MACHINE_SPEC_PATH = os.getenv("MACHINE_SPEC_PATH", "machine_spec.json")
 MACHINE_SPEC_URL = os.getenv("MACHINE_SPEC_URL", None)
 
